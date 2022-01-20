@@ -23,6 +23,13 @@ function help
 # <mode> <ip> <mask> <freq> <txpower> <country> <interface>
 
 # check if p2p mode is supported
+p2p_mode=$(iw list | grep "* P2P-GO" | awk 'NR==1{print $2}')
+if [ "$p2p_mode" = "P2P-GO" ]; then
+    echo "p2p GO is supported"
+else
+    echo "p2p GO is not supported"
+    exit
+fi
 
 wifidev=${7}
 phyname=${8}
