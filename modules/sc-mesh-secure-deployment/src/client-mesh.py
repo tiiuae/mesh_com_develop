@@ -192,12 +192,19 @@ def create_config_ubuntu(response):
             #subprocess.call('pkill wpa_supplicant', shell=True)
             #subprocess.call('pkill -f "/var/run/wpa_supplicant-" 2>/dev/null', shell=True)
     # Copy mesh service to /etc/systemd/system/
+    # Copy mesh service to /etc/systemd/system/
     if conf['mesh_service']:
         mesh_interface = get_interface(conf['mesh_inf'])
         if res['type'] == '11s':
-            subprocess.call('src/bash/conf-11s-mesh.sh ' + mesh_interface, shell=True)
+            if res['routing_protocol'] == 'batman-adv':
+                subprocess.call('src/bash/conf-11s-mesh.sh ' + mesh_interface, shell=True)
+            elif res['routing_protocol'] == 'olsr':
+                subprocess.call('src/bash/conf-11s-olsr-mesh.sh ' + mesh_interface, shell=True)
         if res['type'] == 'ibss':
-            subprocess.call('src/bash/conf-mesh.sh ' + mesh_interface, shell=True)
+            if res['routing_protocol'] == 'batman-adv':
+                subprocess.call('src/bash/conf-mesh.sh ' + mesh_interface, shell=True)
+            elif res['routing_protocol'] == 'olsr':
+                subprocess.call('src/bash/conf-olsr-mesh.sh ' + mesh_interface, shell=True)
 
 
 if __name__ == "__main__":
