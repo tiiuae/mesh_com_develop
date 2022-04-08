@@ -3,7 +3,7 @@
 function help
 {
     echo
-    echo "Usage: sudo ./mesh-ibss.sh <mode> <ip> <mask> <AP MAC> <key> <essid> <freq> <txpower> <country> <interface> <phyname>"
+    echo "Usage: sudo ./mesh-ibss.sh <mode> <ip> <mask> <AP MAC> <key> <essid> <freq> <txpower> <country> <interface> <phyname> <mtu_size> <log_dir>"
     echo "Parameters:"
     echo "	<mode>"
     echo "	<ip>"
@@ -15,7 +15,9 @@ function help
     echo "	<txpower>"
     echo "	<country>"
     echo "	<interface>" - optional
-    echo "	<phyname>"   - optional
+    echo "	<interface>" - optional
+    echo "	<mtu_dir>"   - optional
+    echo "	<log_dir>"   - optional
     echo
     echo "example:"
     echo "sudo ./mesh-ibss.sh mesh 192.168.1.2 255.255.255.0 00:11:22:33:44:55 1234567890 mymesh 5220 30 fi wlan1 phy1"
@@ -79,6 +81,14 @@ else
 fi
 echo "Found: $wifidev $phyname"
 
+if [[ -z "${12}" || -z "${13}" ]]; then
+    mtu_size="1560"
+    log_dir="/tmp/"
+else
+    mtu_size=${12}
+    log_dir=${13}
+fi
+
 case "$1" in
 
 mesh)
@@ -117,73 +127,38 @@ EOF
         pkill -f "/var/run/wpa_supplicant-" 2>/dev/null
         rm -fr /var/run/wpa_supplicant/"$wifidev"
       fi
-      killall alfred 2>/dev/null
-      killall batadv-vis 2>/dev/null
-      rm -f /var/run/alfred.sock
-
-      #modprobe batman-adv
-      #sudo apt update
-           # apt-get install -y sudo time git-core subversion build-essential g++ bash make libssl-dev patch   libncurses5 libncurses5-dev zlib1g-dev gawk flex gettext wget unzip xz-utils python python-distutils-extra python3 python3-distutils-extra rsync linux-headers-$(uname -r) pkg-config libnl-3-dev libnl-genl-3-dev libiw-dev bison cmake
-            #wget https://github.com/OLSR/olsrd/archive/v0.9.8.tar.gz -O olsrd.tar.gz
-	    #tar -xvf olsrd.tar.gz
-	    #cd olsrd-*
-	    #make
-	    #make install
-	    
-
       echo "$wifidev down.."
       iw dev "$wifidev" del
       iw phy "$phyname" interface add "$wifidev" type ibss
+      # Change MTU size
+      ifconfig "$phyname" mtu 1560
 
       echo "$wifidev create adhoc.."
       ifconfig "$wifidev" mtu 1560
 
-      echo "$wifidev up.."
-      #ip link set "$wifidev" up
-      #batctl if add "$wifidev"
-      ip link set "$wifidev" down
       ip link set "$wifidev" up
-      iw dev "$wifidev" mesh join [name-of-mesh]
-      ip addr add 192.168.0.1/24 dev "$wifidev"
-      olsrd -i "$wifidev" -f /dev/null
-      
-      
-      
-      
-      
-      
-      
-      
-
-      #echo "bat0 up.."
-      #ifconfig bat0 up
-      #echo "bat0 ip address.."
-      #ifconfig bat0 "$2" netmask "$3"
-      #echo
-      #ifconfig bat0
+      echo "$wifidev up.."
+      ifconfig "$wifidev" up
+      echo "$wifidev"
+      ifconfig "$wifidev" "$2" netmask "$3"
+      echo
+      ifconfig "$wifidev"
 
       sleep 3
-
-      # for visualisation
-      #(alfred -i bat0 -m)&
-      #echo "started alfred"
-      #(batadv-vis -i bat0 -s)&
-      #echo "started batadv-vis"
-
       # FIXME: Like the comment above - we need to figure out how to handle
       # multiple Wi-Fi interfaces better. For some reason the background setting
       # ensures wpa_supplicant doesn't start when this script is run as a process.
       # This is likely due to the interface not being up in time, and will
       # require some fiddling with the systemd startup order.
       if [[ -z "${10}" ]]; then
-        wpa_supplicant -i "$wifidev" -c /var/run/wpa_supplicant-adhoc.conf -D nl80211 -C /var/run/wpa_supplicant/ -B -f /tmp/wpa_supplicant_ibss.log
+        wpa_supplicant -i "$wifidev" -c /var/run/wpa_supplicant-adhoc.conf -D nl80211 -C /var/run/wpa_supplicant/ -B -f $log_dir/wpa_supplicant_ibss.log
       else
-        wpa_supplicant -i "$wifidev" -c /var/run/wpa_supplicant-adhoc.conf -D nl80211 -C /var/run/wpa_supplicant/ -f /tmp/wpa_supplicant_ibss.log
+        wpa_supplicant -i "$wifidev" -c /var/run/wpa_supplicant-adhoc.conf -D nl80211 -C /var/run/wpa_supplicant/ -f $log_dir/wpa_supplicant_ibss.log
       fi
       ;;
 
 ap)
-      if [[ -z "$1" ]]
+      if [[ -z "$1" ]]sud
         then
           echo "check arguments..."
         help
@@ -235,37 +210,35 @@ EOF
       echo "create $wifidev"
       iw dev "$wifidev" del
       iw phy "$phyname" interface add "$wifidev" type managed
-
       echo "$wifidev up.."
       ip link set "$wifidev" up
-      batctl if add "$wifidev"
-
       echo "set ip address.."
 	    # set AP ipaddr
 	    ifconfig "$wifidev" 192.168.1.1 netmask 255.255.255.0
 
 	    # set bat0 ipaddr
-      #if [ -z "$DRONE_DEVICE_ID" ]
-        #then
+      if [ -z "$DRONE_DEVICE_ID" ]
+        then
           # DRONE_DEVICE_ID not available set default
-          #ifconfig bat0 192.168.1.1 netmask 255.255.255.0
-        #else
-          #declare -i ip=10#$(echo "$DRONE_DEVICE_ID" | tr -d -c 0-9)
-          #ifconfig bat0 192.168.1."$ip" netmask 255.255.255.0
-      #fi
+          ifconfig "$wifidev" 192.168.1.1 netmask 255.255.255.0
+        else
+          declare -i ip=10#$(echo "$DRONE_DEVICE_ID" | tr -d -c 0-9)
+          ifconfig "$wifidev" 192.168.1."$ip" netmask 255.255.255.0
+      fi
 
-      #echo "bat0 up.."
-      #ifconfig bat0 up
-      #echo
-      #ifconfig bat0
+      echo "$wifidev up.."
+      ifconfig "$wifidev" up
+      echo
+      ifconfig "$wifidev"
+      olsrd -i "$wifidev" -f /dev/null
 
-      #route del -net 192.168.1.0 netmask 255.255.255.0 dev bat0
-      #route add -net 192.168.1.0 netmask 255.255.255.0 dev bat0 metric 1
+      route del -net 192.168.1.0 netmask 255.255.255.0 dev  "$wifidev"
+      route add -net 192.168.1.0 netmask 255.255.255.0 dev  "$wifidev" metric 1
 
       #TODO
       # dhserver
 
-      wpa_supplicant -B -i "$wifidev" -c /var/run/wpa_supplicant-ap.conf -D nl80211 -C /var/run/wpa_supplicant/ -f /tmp/wpa_supplicant_ap.log
+      wpa_supplicant -B -i "$wifidev" -c /var/run/wpa_supplicant-ap.conf -D nl80211 -C /var/run/wpa_supplicant/ -f $log_dir/wpa_supplicant_ap.log
 
       ;;
 
@@ -274,9 +247,6 @@ off)
       # service off
       pkill -f "/var/run/wpa_supplicant-" 2>/dev/null
       rm -fr /var/run/wpa_supplicant/"$wifidev"
-      killall alfred 2>/dev/null
-      killall batadv-vis 2>/dev/null
-      rm -f /var/run/alfred.sock 2>/dev/null
       ;;
 *)
       help
