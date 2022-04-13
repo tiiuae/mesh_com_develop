@@ -1,0 +1,50 @@
+--- common/scripts/mesh-ibss-olsr.sh
++++ common/scripts/mesh-ibss-olsr.sh
+@@ -127,20 +127,12 @@ EOF
+         pkill -f "/var/run/wpa_supplicant-" 2>/dev/null
+         rm -fr /var/run/wpa_supplicant/"$wifidev"
+       fi
+-      killall alfred 2>/dev/null
+-      killall batadv-vis 2>/dev/null
+-      rm -f /var/run/alfred.sock
+-
+-      #Check if batman_adv is built-in module
+-      modname=$(ls /sys/module | grep batman_adv)
+-      if [[ -z $modname ]]; then
+-        modprobe batman-adv
+-      fi
++      
+ 
+       echo "$wifidev down.."
+       iw dev "$wifidev" del
+       iw phy "$phyname" interface add "$wifidev" type ibss
+-      # same MTU as for $wifidev. without this the kernel warned that 1500 is too small to handle batman
++      # Change MTU size
+       ifconfig "$phyname" mtu 1560
+ 
+       echo "$wifidev create adhoc.."
+@@ -148,11 +140,11 @@ EOF
+ 
+       echo "$wifidev up.."
+       ip link set "$wifidev" up
+-      #batctl if add "$wifidev"
++ 
+ 
+       echo "$wifidev up.."
+       ifconfig "$wifidev" up
+-      echo "bat0 ip address.."
++      echo "$wifidev"
+       ifconfig "$wifidev" "$2" netmask "$3"
+       echo
+       ifconfig "$wifidev"
+@@ -251,8 +243,8 @@ EOF
+       ifconfig "$wifidev"
+       olsrd -i "$wifidev" -f /dev/null
+ 
+-      route del -net 192.168.1.0 netmask 255.255.255.0 dev bat0
+-      route add -net 192.168.1.0 netmask 255.255.255.0 dev bat0 metric 1
++      route del -net 192.168.1.0 netmask 255.255.255.0 dev  "$wifidev"
++      route add -net 192.168.1.0 netmask 255.255.255.0 dev  "$wifidev" metric 1
+ 
+       #TODO
+       # dhserver
