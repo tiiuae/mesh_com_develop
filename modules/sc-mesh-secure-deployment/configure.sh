@@ -302,9 +302,15 @@ function client {
     popd
   fi
   # Connect to the same AP as the server
-  read -p "> We need to be connect to the same network as the server... Connect to an Access Point? (Y/N): " confirm
-  if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
-    ap_connect
+
+  # Add if statement for CI/CD
+  if [[ "$2" == "-ci" ]]; then
+    echo "We need to be connect to the same network as the server... Connect to an Access Point? (Y/N): No"
+  else
+    read -p "> We need to be connect to the same network as the server... Connect to an Access Point? (Y/N): " confirm
+    if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
+      ap_connect
+    fi
   fi
   echo -n '> Server discovery...'
   # get server IPv4 and hostname
@@ -316,6 +322,13 @@ function client {
   server_ip=${server_details[0]}
   server_host=${server_details[1]}
   echo "> We will use src/ecc_key.der if it already exists, or we can try and fetch it..."
+  if [[ "$2" == "-ci"  ]]; then
+    $server_user = "root"
+    echo "> Do you want to fetch the certificate from the server $server_host@$server_ip? (Y/N): Yes"
+    echo '> Fetching certificate from server...'
+    echo "- Server Username: " root
+    # pull the key from the server
+    scp $server_user@$server_ip:/opt/container-data/mesh/mesh_com/modules/sc-mesh-secure-deployment/src/ecc_key.der $MESH_COM_ROOT$KEY_PATH
   read -p "> Do you want to fetch the certificate from the server $server_host@$server_ip? (Y/N): " confirm
   if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
     echo '> Fetching certificate from server...'
