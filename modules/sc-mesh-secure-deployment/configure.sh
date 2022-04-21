@@ -65,13 +65,25 @@ get_SSID <<< "$(iw $sta_if scan)"
 echo '> scanning available Access Point, select ssid from scan list...'
 menu_from_array "${ssid_array[@]}"
 ssid=$choice
-read -p "- Password: " password
-cat <<EOF > conf/ap.conf
-network={
-  ssid="$ssid"
-  psk="$password"
-}
+if [[ "$2" == "-ci" ]]; then
+  source /tmp/ci.conf
+  echo "- Password: $password"
+  cat <<EOF > conf/ap.conf
+  network={
+    ssid="$ssid"
+    psk="$password"
+  }
 EOF
+else
+  read -p "- Password: " password
+  cat <<EOF > conf/ap.conf
+  network={
+    ssid="$ssid"
+    psk="$password"
+  }
+EOF
+fi
+
 
 #mesh(IBSS) and sta interface are not supported concurrently.
 #Stop mesh(IBSS) service on the selected vif, if already running.
@@ -309,7 +321,7 @@ function client {
   else
     read -p "> We need to be connect to the same network as the server... Connect to an Access Point? (Y/N): " confirm
     if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
-      ap_connect
+      ap_connect $1 $2
     fi
   fi
   echo -n '> Server discovery...'
@@ -323,18 +335,21 @@ function client {
   server_host=${server_details[1]}
   echo "> We will use src/ecc_key.der if it already exists, or we can try and fetch it..."
   if [[ "$2" == "-ci"  ]]; then
-    $server_user = "root"
+    source /tmp/ci.conf
+    #$server_user = "root"
     echo "> Do you want to fetch the certificate from the server $server_host@$server_ip? (Y/N): Yes"
     echo '> Fetching certificate from server...'
     echo "- Server Username: " root
     # pull the key from the server
     scp $server_user@$server_ip:/opt/container-data/mesh/mesh_com/modules/sc-mesh-secure-deployment/src/ecc_key.der $MESH_COM_ROOT$KEY_PATH
-  read -p "> Do you want to fetch the certificate from the server $server_host@$server_ip? (Y/N): " confirm
-  if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
-    echo '> Fetching certificate from server...'
-    read -p "- Server Username: " server_user
-    # pull the key from the server
-    scp $server_user@$server_ip:/opt/container-data/mesh/mesh_com/modules/sc-mesh-secure-deployment/src/ecc_key.der $MESH_COM_ROOT$KEY_PATH
+  else
+    read -p "> Do you want to fetch the certificate from the server $server_host@$server_ip? (Y/N): " confirm
+    if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
+      echo '> Fetching certificate from server...'
+      read -p "- Server Username: " server_user
+      # pull the key from the server
+      scp $server_user@$server_ip:/opt/container-data/mesh/mesh_com/modules/sc-mesh-secure-deployment/src/ecc_key.der $MESH_COM_ROOT$KEY_PATH
+    fi
   fi
 
   echo '> Configuring the client and connecting to server...'
