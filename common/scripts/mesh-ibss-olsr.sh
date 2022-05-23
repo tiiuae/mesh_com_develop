@@ -127,6 +127,8 @@ EOF
         pkill -f "/var/run/wpa_supplicant-" 2>/dev/null
         rm -fr /var/run/wpa_supplicant/"$wifidev"
       fi
+      
+
       echo "$wifidev down.."
       iw dev "$wifidev" del
       iw phy "$phyname" interface add "$wifidev" type ibss
@@ -136,7 +138,10 @@ EOF
       echo "$wifidev create adhoc.."
       ifconfig "$wifidev" mtu 1560
 
+      echo "$wifidev up.."
       ip link set "$wifidev" up
+ 
+
       echo "$wifidev up.."
       ifconfig "$wifidev" up
       echo "$wifidev"
@@ -145,6 +150,9 @@ EOF
       ifconfig "$wifidev"
 
       sleep 3
+
+      
+
       # FIXME: Like the comment above - we need to figure out how to handle
       # multiple Wi-Fi interfaces better. For some reason the background setting
       # ensures wpa_supplicant doesn't start when this script is run as a process.
@@ -210,8 +218,11 @@ EOF
       echo "create $wifidev"
       iw dev "$wifidev" del
       iw phy "$phyname" interface add "$wifidev" type managed
+
       echo "$wifidev up.."
       ip link set "$wifidev" up
+      
+
       echo "set ip address.."
 	    # set AP ipaddr
 	    ifconfig "$wifidev" 192.168.1.1 netmask 255.255.255.0
@@ -247,6 +258,7 @@ off)
       # service off
       pkill -f "/var/run/wpa_supplicant-" 2>/dev/null
       rm -fr /var/run/wpa_supplicant/"$wifidev"
+      
       ;;
 *)
       help

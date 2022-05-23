@@ -3,7 +3,7 @@
 function help
 {
     echo
-    echo "Usage: sudo $0 <mode> <ip> <mask> <AP MAC> <key> <essid> <freq> <txpower> <country> [<interface>] [<phyname>]"
+    echo "Usage: sudo ./mesh-ibss.sh <mode> <ip> <mask> <AP MAC> <key> <essid> <freq> <txpower> <country> <interface> <phyname> <mtu_size> <log_dir>"
     echo "Parameters:"
     echo "	<mode>"
     echo "	<ip>"
@@ -15,11 +15,13 @@ function help
     echo "	<txpower>"
     echo "	<country>"
     echo "	<interface>" - optional
-    echo "	<phyname>"   - optional
+    echo "	<interface>" - optional
+    echo "	<mtu_dir>"   - optional
+    echo "	<log_dir>"   - optional
     echo
     echo "example:"
-    echo "sudo $0 mesh 192.168.1.2 255.255.255.0 00:11:22:33:44:55 1234567890 mymesh2 5220 30 fi wlan1 phy1"
-    echo "sudo $0 ap"
+    echo "sudo ./mesh-ibss.sh mesh 192.168.1.2 255.255.255.0 00:11:22:33:44:55 1234567890 mymesh 5220 30 fi wlan1 phy1"
+    echo "sudo mesh.sh ap"
     exit
 }
 
@@ -62,10 +64,9 @@ if [[ -z "${10}" ]]; then
   rfkill unblock all
   # multiple wifi options --> can be detected as follows:
   # manufacturer 0x168c = Qualcomm
-  # devices = 0x0034 0x003c 9462/988x  11s
-  #           0x003e        6174       adhoc
-  #           0x0033        9590       doodle
-  find_mesh_wifi_device 0x168c "0x0034 0x003c 0x003e 0x0033"
+  # devices = 0x0034 0x003c 9462/988x
+  #           0x003e        6174
+  find_mesh_wifi_device 0x168c "0x003e 0x0034 0x003c"
 
   if [ "$retval_phy" != "" ]; then
       phyname=$retval_phy
@@ -80,6 +81,14 @@ else
 fi
 echo "Found: $wifidev $phyname"
 
+if [[ -z "${12}" || -z "${13}" ]]; then
+    mtu_size="1560"
+    log_dir="/tmp/"
+else
+    mtu_size=${12}
+    log_dir=${13}
+fi
+
 case "$1" in
 
 mesh)
@@ -91,23 +100,21 @@ echo "sudo mesh $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11}"
         help
       fi
 
-cat <<EOF >/var/run/wpa_supplicant-11s.conf
+cat <<EOF >/var/run/wpa_supplicant-adhoc.conf
 ctrl_interface=DIR=/var/run/wpa_supplicant
 # use 'ap_scan=2' on all devices connected to the network
 # this is unnecessary if you only want the network to be created when no other networks..
 ap_scan=1
 country=$9
 p2p_disabled=1
-mesh_max_inactivity=50
 network={
     ssid="$6"
     bssid=$4
-    mode=5
+    mode=1
     frequency=$7
-    psk="$5"
-    key_mgmt=SAE
-    ieee80211w=2
-    mesh_fwding=0
+    wep_key0=$5
+    wep_tx_keyidx=0
+    key_mgmt=NONE
 }
 EOF
 
@@ -120,49 +127,31 @@ EOF
         pkill -f "/var/run/wpa_supplicant-" 2>/dev/null
         rm -fr /var/run/wpa_supplicant/"$wifidev"
       fi
-      killall alfred 2>/dev/null
-      killall batadv-vis 2>/dev/null
-      rm -f /var/run/alfred.sock
-
-      #Check if batman_adv is built-in module
-      modname=$(ls /sys/module | grep batman_adv)
-      if [[ -z $modname ]]; then
-        modprobe batman-adv
-      fi
+      
 
       echo "$wifidev down.."
       iw dev "$wifidev" del
-      iw phy "$phyname" interface add "$wifidev" type mp
-  
-      echo "Longer range tweak.."
-      iw phy "$phyname" set distance 1000
+      iw phy "$phyname" interface add "$wifidev" type ibss
+      # Change MTU size
+      ifconfig "$phyname" mtu 1560
 
-      echo "$wifidev create 11s.."
+      echo "$wifidev create adhoc.."
       ifconfig "$wifidev" mtu 1560
 
       echo "$wifidev up.."
       ip link set "$wifidev" up
-      batctl if add "$wifidev"
+ 
 
-      echo "bat0 up.."
-      ifconfig bat0 up
-      echo "bat0 ip address.."
-      ifconfig bat0 "$2" netmask "$3"
-      echo "bat0 mtu size"
-      ifconfig bat0 mtu 1460
+      echo "$wifidev up.."
+      ifconfig "$wifidev" up
+      echo "$wifidev"
+      ifconfig "$wifidev" "$2" netmask "$3"
       echo
-      ifconfig bat0
+      ifconfig "$wifidev"
 
       sleep 3
 
-      # for visualisation
-      (alfred -i bat0 -m)&
-      echo "started alfred"
-      (batadv-vis -i bat0 -s)&
-      echo "started batadv-vis"
-
-      # Radio parameters
-      iw dev "$wifidev" set txpower limit "$8"00
+      
 
       # FIXME: Like the comment above - we need to figure out how to handle
       # multiple Wi-Fi interfaces better. For some reason the background setting
@@ -170,14 +159,14 @@ EOF
       # This is likely due to the interface not being up in time, and will
       # require some fiddling with the systemd startup order.
       if [[ -z "${10}" ]]; then
-        wpa_supplicant -i "$wifidev" -c /var/run/wpa_supplicant-11s.conf -D nl80211 -C /var/run/wpa_supplicant/ -B -f /tmp/wpa_supplicant_11s.log
+        wpa_supplicant -i "$wifidev" -c /var/run/wpa_supplicant-adhoc.conf -D nl80211 -C /var/run/wpa_supplicant/ -B -f $log_dir/wpa_supplicant_ibss.log
       else
-        wpa_supplicant -i "$wifidev" -c /var/run/wpa_supplicant-11s.conf -D nl80211 -C /var/run/wpa_supplicant/ -f /tmp/wpa_supplicant_11s.log
+        wpa_supplicant -i "$wifidev" -c /var/run/wpa_supplicant-adhoc.conf -D nl80211 -C /var/run/wpa_supplicant/ -f $log_dir/wpa_supplicant_ibss.log
       fi
       ;;
 
 ap)
-      if [[ -z "$1" ]]
+      if [[ -z "$1" ]]sud
         then
           echo "check arguments..."
         help
@@ -232,7 +221,7 @@ EOF
 
       echo "$wifidev up.."
       ip link set "$wifidev" up
-      batctl if add "$wifidev"
+      
 
       echo "set ip address.."
 	    # set AP ipaddr
@@ -240,26 +229,27 @@ EOF
 
 	    # set bat0 ipaddr
       if [ -z "$DRONE_DEVICE_ID" ]
-        then 
+        then
           # DRONE_DEVICE_ID not available set default
-          ifconfig bat0 192.168.1.1 netmask 255.255.255.0
+          ifconfig "$wifidev" 192.168.1.1 netmask 255.255.255.0
         else
           declare -i ip=10#$(echo "$DRONE_DEVICE_ID" | tr -d -c 0-9)
-          ifconfig bat0 192.168.1."$ip" netmask 255.255.255.0
+          ifconfig "$wifidev" 192.168.1."$ip" netmask 255.255.255.0
       fi
 
-      echo "bat0 up.."
-      ifconfig bat0 up
+      echo "$wifidev up.."
+      ifconfig "$wifidev" up
       echo
-      ifconfig bat0
+      ifconfig "$wifidev"
+      olsrd -i "$wifidev" -f /dev/null
 
-      route del -net 192.168.1.0 netmask 255.255.255.0 dev bat0
-      route add -net 192.168.1.0 netmask 255.255.255.0 dev bat0 metric 1
+      route del -net 192.168.1.0 netmask 255.255.255.0 dev  "$wifidev"
+      route add -net 192.168.1.0 netmask 255.255.255.0 dev  "$wifidev" metric 1
 
       #TODO
       # dhserver
 
-      wpa_supplicant -B -i "$wifidev" -c /var/run/wpa_supplicant-ap.conf -D nl80211 -C /var/run/wpa_supplicant/ -f /tmp/wpa_supplicant_ap.log
+      wpa_supplicant -B -i "$wifidev" -c /var/run/wpa_supplicant-ap.conf -D nl80211 -C /var/run/wpa_supplicant/ -f $log_dir/wpa_supplicant_ap.log
 
       ;;
 
@@ -268,12 +258,9 @@ off)
       # service off
       pkill -f "/var/run/wpa_supplicant-" 2>/dev/null
       rm -fr /var/run/wpa_supplicant/"$wifidev"
-      killall alfred 2>/dev/null
-      killall batadv-vis 2>/dev/null
-      rm -f /var/run/alfred.sock 2>/dev/null
+      
       ;;
 *)
       help
       ;;
 esac
-
