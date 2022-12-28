@@ -3,7 +3,7 @@ import getopt
 import sys
 import datetime
 import time
-import subprocess
+from common.comms_utils import comms_utils
 from time import sleep
 from threading import Thread
 from getmac import get_mac_address
@@ -22,8 +22,7 @@ def is_csi_supported():
     print(csi_type)
     if (csi_type == 'nexmon'):
         soc_version_cmd = "cat /proc/cpuinfo | grep 'Revision' | awk '{print $3}'"
-        proc = subprocess.Popen(soc_version_cmd, stdout=subprocess.PIPE, shell=True)
-        soc_version = proc.communicate()[0].decode('utf-8').strip()
+        soc_version = comms_utils.subprocess_exec(soc_version_cmd).decode('utf-8').strip()
         if debug:
            print("SOC VERSION:"+soc_version)
         if ((soc_version == 'a020d3') or (soc_version == 'b03114')):
@@ -64,27 +63,25 @@ def capture_raw_csi():
     csi_filter_cmd = "makecsiparams -c " + str(channel) + '\/' + str(bandwidth) + " -C 1 -N 1 -m " + mac_addr_filter + " -b 0x88"
     if debug:
         print(csi_filter_cmd)
-    proc = subprocess.Popen(csi_filter_cmd, stdout=subprocess.PIPE, shell=True)
-    filter_conf_resp = proc.communicate()[0].decode('utf-8').strip()
+    filter_conf_resp = comms_utils.subprocess_exec(csi_filter_cmd).decode('utf-8').strip()
     if debug:
         print(filter_conf_resp)
 
    #Configure CSI extractor
     csi_ext_cmd = "nexutil -I" + interface + " -s500 -b -l34 -v"+filter_conf_resp
-    proc = subprocess.Popen(csi_ext_cmd, stdout=subprocess.PIPE, shell=True)
+    comms_utils.subprocess_exec(csi_ext_cmd)
     if debug:
         print(csi_ext_cmd)
 
     en_monitor_mode_cmd = "iw phy `iw dev " + interface + " info | gawk '/wiphy/ {printf \"phy\" $2}'` interface add mon0 type monitor && ifconfig mon0 up"
-    proc = subprocess.Popen(en_monitor_mode_cmd, stdout=subprocess.PIPE, shell=True)
-
+    comms_utils.subprocess_exec(en_monitor_mode_cmd)
     if debug:
         print(en_monitor_mode_cmd)
 
     #Make sure injector is generating unicast traffic to mac_addr_filter
     #destination, Start tcpdump to capture  the CSI
     dump_cmd = "tcpdump -G 60 -i " + interface + " dst port 5500 -w csi-%m_%d_%Y_%H_%M_%S.pcap"
-    proc = subprocess.Popen(dump_cmd, stdout=subprocess.PIPE, shell=True)
+    comms_utils.subprocess_exec(dump_cmd)
 
 def get_mac_oui():
     mac = EUI(get_mac_address(interface))
@@ -94,9 +91,8 @@ def get_mac_oui():
 
 def get_rssi():
     global interface
-    cmd = "iw dev " + interface + " station dump | grep 'signal:' | awk '{print $2}'"
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
-    rssi = proc.communicate()[0].decode('utf-8')
+    rssi_cmd = "iw dev " + interface + " station dump | grep 'signal:' | awk '{print $2}'"
+    rssi = comms_utils.subprocess_exec(rssi_cmd).decode('utf-8').strip()
     return rssi
 
 def log_rssi():
