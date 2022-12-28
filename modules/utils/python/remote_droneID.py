@@ -1,7 +1,7 @@
-import subprocess
 from time import sleep
 from threading import Thread
 import yaml
+from common.comms_utils import comms_utils
 
 class DRI:
     # ROS node to convert to hex format
@@ -39,7 +39,7 @@ class DRI:
                 "hostapd_cli DISABLE",
                 "hostapd_cli ENABLE"]
         for cmd in cmds:
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
+            comms_utils.subprocess_exec(cmd)
 
     @staticmethod
     def prepare_ble_dri_uuid(drone_id):
@@ -49,26 +49,25 @@ class DRI:
     def ble_dri_tx(self, drone_id):
         # allow rfkill to bring up bluetooth hci interface
         cmd = "rfkill unblock bluetooth"
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
+        comms_utils.subprocess_exec(cmd)
         # bring up bluetooth interface.
         # To do: use bluez python lib
         cmd = "hciconfig " + str(self.bt_if) + " up"
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
+        comms_utils.subprocess_exec(cmd)
         # enable ble advertising, To do: dynamically detect connection vs connectionless adv
         cmd = "hciconfig " + str(self.bt_if) + " leadv 3"
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
+        comms_utils.subprocess_exec(cmd)
         sd = self.prepare_ble_dri_uuid(drone_id)
         # To do: generate dynamic UUID and remove hardcoded tx power(get from conf)
         cmd = "hcitool -i " + str(self.bt_if) + " cmd 0x08 0x0008 1E 02 01 1A 1A FF 4C 00 02 15 " +\
               str(sd) + " 00 00 00 00 " + "C5 00"
         print(cmd)
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
+        comms_utils.subprocess_exec(cmd)
 
     @staticmethod
     def get_wifi_beacon_list(self):
         cmd = "iw wlan0 scan -u | grep 'SSID\|Vendor specific'"
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
-        dri_oui_list = proc.communicate()[0].decode('utf-8').strip()
+        dri_oui_list = comms_utils.subprocess_exec(cmd).decode('utf-8').strip()
         if self.debug:
             print(f"{dri_oui_list=}")
 
