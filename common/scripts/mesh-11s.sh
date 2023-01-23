@@ -115,6 +115,9 @@ network={
     key_mgmt=SAE
     ieee80211w=2
     mesh_fwding=0
+    beacon_int=1000
+    disable_ht40=1
+    mesh_basic_rates=120 180 240 360 480 540
 }
 EOF
 
@@ -188,7 +191,7 @@ EOF
       # This is likely due to the interface not being up in time, and will
       # require some fiddling with the systemd startup order.
       if [[ -z "${10}" ]]; then
-        wpa_supplicant -i "$wifidev" -c /var/run/wpa_supplicant-11s.conf -D nl80211 -C /var/run/wpa_supplicant/ -B -f /tmp/wpa_supplicant_11s.log
+        wpa_supplicant -i "$wifidev" -c /var/run/wpa_supplicant-11s.conf -D nl80211 -C /var/run/wpa_supplicant/ -B -dd -f /tmp/wpa_supplicant_11s.log
       else
         wpa_supplicant -i "$wifidev" -c /var/run/wpa_supplicant-11s.conf -D nl80211 -C /var/run/wpa_supplicant/ -f /tmp/wpa_supplicant_11s.log
       fi
