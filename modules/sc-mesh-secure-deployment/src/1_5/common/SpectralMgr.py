@@ -286,3 +286,4 @@ class Spectral:
         elif(file_exists == False):
             os.system("touch " + fn)
             return open(fn, 'rb')
+ 
